@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>RP / Explorer — Feedback Delivery Tracker</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#1a1f2b; --muted:#5b6472; --line:#e6e8ee;
+    --plan:#8a94a6; --scope:#7c5cff; --prog:#2f80ed; --review:#f2994a; --done:#27ae60;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5}
+  .wrap{max-width:1200px;margin:0 auto;padding:24px 20px 60px}
+  header h1{margin:0 0 4px;font-size:22px}
+  header p{margin:0;color:var(--muted)}
+  .meta{font-size:12px;color:var(--muted);margin-top:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.85}
+  .s-planning{background:var(--plan)} .s-scoping{background:var(--scope)}
+  .s-in_progress{background:var(--prog)} .s-in_review{background:var(--review)} .s-delivered{background:var(--done)}
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:16px 0 8px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;text-align:center}
+  .stat .n{font-size:24px;font-weight:700}
+  .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:18px 0}
+  .controls label{font-size:12px;color:var(--muted)}
+  select{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:13px}
+  .ask{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .ask-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .ask-id{font-weight:700;color:var(--muted);font-size:13px}
+  .ask-title{font-size:17px;font-weight:700;margin:0}
+  .problem{margin:10px 0 4px;color:#33405c;font-size:13px}
+  .problem b{font-weight:700}
+  .problem .p-text{text-decoration:underline;text-decoration-color:#c4b5ff;text-decoration-thickness:2px;text-underline-offset:3px}
+  .items{margin-top:14px;display:grid;gap:12px}
+  .item{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fbfcfe}
+  .item-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .item-id{font-size:12px;font-weight:700;color:var(--muted)}
+  .item-title{font-weight:650;font-size:14px}
+  .item-desc{color:var(--muted);margin:6px 0 8px}
+  .row{margin:6px 0;font-size:13px}
+  .row .k{font-weight:600;color:#3a4252}
+  .tickets{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  a.tkt{font-size:12px;font-weight:600;text-decoration:none;color:#2f6fed;background:#eaf1ff;border:1px solid #d6e3ff;padding:2px 8px;border-radius:6px}
+  a.tkt:hover{background:#dbe8ff}
+  .none{font-size:12px;color:#9aa3b2;font-style:italic}
+  .oq{margin-top:8px;background:#fff8ec;border:1px solid #ffe4bd;border-radius:8px;padding:8px 10px;font-size:13px}
+  .oq b{color:#b4791f}
+  .deps{color:#7a4b8a}
+  footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}
+  @media (max-width:640px){.ask{padding:14px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="t"></h1>
+    <p id="sub"></p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="legend" id="legend"></div>
+  <div class="summary" id="summary"></div>
+
+  <div class="controls">
+    <label for="fstatus">Filter by status:</label>
+    <select id="fstatus"><option value="all">All</option></select>
+    <label for="fask" style="margin-left:8px">Ask:</label>
+    <select id="fask"><option value="all">All</option></select>
+  </div>
+
+  <div id="board"></div>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const LABELS={planning:"Planning",scoping:"Scoping / PRD",in_progress:"In Progress",in_review:"In Review / Testing",delivered:"Delivered"};
+const ORDER=["planning","scoping","in_progress","in_review","delivered"];
+let DATA=null;
+const DATA_INLINE = {"meta": {"title": "RP / Explorer \u2014 Feedback Delivery Tracker", "subtitle": "Stakeholder view of commissioning-audience feature requests. Live Jira status (project DIF). No new tickets created.", "generated": "2026-08-03", "jira_base": "https://jira.frontiersin.net/browse/"}, "asks": [{"id": "A1", "title": "Available audience for journal/section, assigned to a team member", "problem": "Commissioning teams can't see how many contactable researchers exist for a given journal or section, nor split ownership across the team \u2014 so outreach is uncoordinated and audiences get double-worked or missed.", "items": [{"id": "1a", "title": "Audience count per journal / section", "desc": "Given a journal or section, show the count of contactable researchers in that audience.", "status": "in_progress", "tickets": ["DIF-1303", "DIF-1569"], "deps": ["Requires the section filter (2a) to define the audience boundary"], "oq": "Is 'available audience' the raw match count, or net of exclusions (opted-out, banned country)? That decides whether this depends on Ask 4."}, {"id": "1b", "title": "Assign audience to a team member", "desc": "Assign a batch or an individual researcher to a named team member for outreach ownership.", "status": "planning", "tickets": [], "deps": ["Blocked on 1a existing first"], "oq": "Does assignment live in Explorer, or downstream in Salesforce campaign tooling? No Explorer ticket exists \u2014 the system of record must be confirmed before scoping."}]}, {"id": "A2", "title": "Boolean operator and section filter", "problem": "Current filters are too blunt to build a precise target list \u2014 teams can't narrow to a section or combine criteria with AND/OR/NOT, producing noisy candidate lists.", "items": [{"id": "2a", "title": "Hierarchical journal \u2192 section filter", "desc": "Filter search results by journal and its sections in a hierarchical picker.", "status": "scoping", "tickets": ["DIF-1303", "DIF-1529"], "deps": ["DIF-1303 is a placeholder pending PRD refinement"], "oq": "Single-section or multi-section selection at once, and must it combine with the boolean logic in 2b?"}, {"id": "2b", "title": "Boolean operator across facets", "desc": "Combine filter criteria with AND / OR / NOT logic.", "status": "in_review", "tickets": ["DIF-1495"], "deps": ["DIF-1495 shipped a must-have / must-not model, but only for editorial-role engagement"], "oq": "Is a general-purpose boolean operator wanted across ALL facets, or is the shipped 'must have / must NOT have' engagement model enough? Full generalization is new scope beyond DIF-1495."}]}, {"id": "A3", "title": "Option to run a manual campaign for junior researchers", "problem": "There is no way to deliberately target early-career researchers \u2014 an under-served, high-potential segment \u2014 for outreach.", "items": [{"id": "3a", "title": "Define the 'junior researcher' segment", "desc": "A career-stage facet/filter that identifies early-career researchers.", "status": "planning", "tickets": [], "deps": ["No career-stage facet confirmed in RPS/Explorer today"], "oq": "What defines 'junior' \u2014 years since first publication, academic title, h-index band, or an explicit career-stage field? Must be agreed before build."}, {"id": "3b", "title": "Manually trigger the campaign", "desc": "A manual action to launch outreach to the junior-researcher segment.", "status": "planning", "tickets": [], "deps": ["Depends on 3a segment definition"], "oq": "Does the campaign execute in Explorer, or is Explorer only the audience builder handing off to Salesforce/Marketing Cloud? Governance rules (marketing-audience-management) likely apply."}]}, {"id": "A4", "title": "Show why researchers are excluded, by reason", "problem": "When researchers drop out of a list, teams don't know why \u2014 integrity flag vs opted-out vs unavailable \u2014 so they can't trust the audience or act on fixable exclusions.", "items": [{"id": "4a", "title": "Integrity / eligibility exclusions", "desc": "Exclusion by retractions, PubPeer, watchlist, banned country, with a green/red verdict.", "status": "in_progress", "tickets": ["DIF-1502", "DIF-1503", "DIF-1504", "DIF-1505", "DIF-1513", "DIF-1509", "DIF-1554"], "deps": ["DIF-1505 (Complete Summary + verdict) is blocked on DIF-1513 (RPS Metrics API, To-Do) \u2014 critical path"], "oq": "Per-researcher verdict only, or also aggregated ('X of Y excluded, by reason')? Only the per-profile view is currently scoped."}, {"id": "4b", "title": "Contactability exclusions", "desc": "Exclusion by opt-out / unsubscribed / availability status.", "status": "scoping", "tickets": ["DIF-1559", "DIF-1549", "DIF-1569"], "deps": ["Depends on EmailUnsubscribed ingestion (DIF-1559 Refinement, DIF-1549 To-Do)"], "oq": "Same feature as 4a or a separate view? Different data sources and owners \u2014 confirm whether one unified reason list or two."}]}, {"id": "A5", "title": "Select what type of search to run: full profile, publications, conference", "problem": "Search always runs against the full profile, so teams can't target specifically on recent publications or conference activity \u2014 diluting the relevance of results.", "items": [{"id": "5a", "title": "Backend data per search type", "desc": "Searchable data exists for publications and conference content.", "status": "delivered", "tickets": ["DIF-1319", "DIF-1416"], "deps": [], "oq": "None \u2014 conference ingestion (DIF-1319) and conference fields in full-text search (DIF-1416) are Done."}, {"id": "5b", "title": "Search-type selector UI", "desc": "A toggle to scope search to full profile, publications, or conference.", "status": "planning", "tickets": [], "deps": ["Backend (5a) ready; this is a front-end/UX gap"], "oq": "Exactly which types (full profile / pubs / conf), and should each be full-text, semantic, or both?"}]}]};
+DATA=DATA_INLINE;
+window.addEventListener('DOMContentLoaded',render);
+
+function render(){
+  const m=DATA.meta;
+  document.getElementById("t").textContent=m.title;
+  document.getElementById("sub").textContent=m.subtitle;
+  document.getElementById("meta").textContent="Generated "+m.generated+" · Source: Jira project DIF (live) · Status flow: Planning → Scoping → In Progress → In Review → Delivered";
+  document.getElementById("foot").textContent="Live view · statuses reflect Jira DIF at generation time · no tickets were created for this dashboard.";
+
+  const leg=document.getElementById("legend");
+  ORDER.forEach(s=>{const el=document.createElement("span");el.className="pill s-"+s;el.innerHTML='<span class="dot"></span>'+LABELS[s];leg.appendChild(el);});
+
+  // summary counts
+  const items=DATA.asks.flatMap(a=>a.items);
+  const counts={};ORDER.forEach(s=>counts[s]=0);items.forEach(i=>counts[i.status]++);
+  const sum=document.getElementById("summary");
+  ORDER.forEach(s=>{const el=document.createElement("div");el.className="stat";
+    el.innerHTML='<div class="n">'+counts[s]+'</div><div class="l">'+LABELS[s]+'</div>';sum.appendChild(el);});
+
+  const fs=document.getElementById("fstatus");
+  ORDER.forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=LABELS[s];fs.appendChild(o);});
+  const fa=document.getElementById("fask");
+  DATA.asks.forEach(a=>{const o=document.createElement("option");o.value=a.id;o.textContent=a.id+" — "+a.title;fa.appendChild(o);});
+  fs.onchange=fa.onchange=draw;
+  draw();
+}
+
+function draw(){
+  const st=document.getElementById("fstatus").value;
+  const ak=document.getElementById("fask").value;
+  const board=document.getElementById("board");board.innerHTML="";
+  DATA.asks.forEach(a=>{
+    if(ak!=="all"&&a.id!==ak)return;
+    const shown=a.items.filter(i=>st==="all"||i.status===st);
+    if(shown.length===0)return;
+    const card=document.createElement("div");card.className="ask";
+    let html='<div class="ask-head"><span class="ask-id">'+a.id+'</span><h2 class="ask-title">'+a.title+'</h2></div>';
+    html+='<div class="problem"><b>Problem to be solved:</b> <span class="p-text">'+a.problem+'</span></div>';
+    html+='<div class="items">';
+    shown.forEach(i=>{
+      html+='<div class="item"><div class="item-head"><span class="item-id">'+i.id+'</span>'+
+            '<span class="pill s-'+i.status+'"><span class="dot"></span>'+LABELS[i.status]+'</span>'+
+            '<span class="item-title">'+i.title+'</span></div>';
+      html+='<div class="item-desc">'+i.desc+'</div>';
+      html+='<div class="row"><span class="k">Jira:</span> ';
+      if(i.tickets.length){html+='<span class="tickets">'+i.tickets.map(t=>'<a class="tkt" target="_blank" href="'+DATA.meta.jira_base+t+'">'+t+'</a>').join('')+'</span>';}
+      else{html+='<span class="none">no existing ticket — gap</span>';}
+      html+='</div>';
+      if(i.deps.length){html+='<div class="row deps"><span class="k">Dependencies:</span> '+i.deps.join('; ')+'</div>';}
+      html+='<div class="oq"><b>Open question:</b> '+i.oq+'</div>';
+      html+='</div>';
+    });
+    html+='</div>';
+    card.innerHTML=html;
+    board.appendChild(card);
+  });
+  if(!board.innerHTML)board.innerHTML='<p class="none">No items match this filter.</p>';
+}
+</script>
+</body>
+</html>
